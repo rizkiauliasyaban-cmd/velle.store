@@ -1,0 +1,1067 @@
+import React, { useState, useEffect, useContext, createContext } from 'react';
+import { 
+  Star, Heart, MessageCircle, ArrowRight, CheckCircle2, ShoppingCart,
+  AlertTriangle, Search, Filter, Plus, Trash2, X, Info, Clock, ExternalLink,
+  ChevronUp, CreditCard, Smartphone, MonitorPlay, Film, Music, Coffee, Ticket, 
+  Edit3, Settings, LogOut, Save, Copy, Check, Upload, ArrowLeft, ArrowUpDown, Eye, Trash, Sparkles
+} from 'lucide-react';
+import { initializeApp } from 'firebase/app';
+import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, setDoc } from 'firebase/firestore';
+
+const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+let app, auth, db;
+try {
+  app = initializeApp(firebaseConfig);
+  auth = getAuth(app);
+  db = getFirestore(app);
+} catch (e) {
+  console.warn("Firebase initialization skipped or simulated in current environment.");
+}
+
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'velle-store-v2';
+const STORE_WA_NUMBER = "6283815465258"; // WhatsApp admin contact
+
+const defaultPaymentMethods = [
+  { id: 'qris', name: 'QRIS', detail: 'Scan QR Code di bawah', number: 'QRIS - Auto Scan' },
+  { id: 'dana', name: 'DANA', detail: '083815465258 a/n Velle Store', number: '083815465258' },
+  { id: 'gopay', name: 'GOPAY', detail: '083815465258 a/n Velle Store', number: '083815465258' },
+  { id: 'shopeepay', name: 'ShopeePay', detail: '083815465258 a/n Velle Store', number: '083815465258' },
+  { id: 'seabank', name: 'SeaBank', detail: '90123456789 a/n Velle Store', number: '90123456789' },
+];
+
+const defaultProducts = [
+  /* --- Category: Netflix --- */
+  {
+    name: "Netflix Premium",
+    category: "Netflix",
+    iconName: "Film",
+    color: "bg-red-50 text-red-500 border border-red-100",
+    description: "Nonton film & serial terbaik dunia dalam kualitas Ultra HD.",
+    variants: [
+      { name: "1d1u (1 Hari 1 User)", price: 7500 },
+      { name: "1d2u (1 Hari 2 User)", price: 6500 },
+      { name: "7h1u (7 Hari 1 User)", price: 13000 },
+      { name: "7h2u (7 Hari 2 User)", price: 12000 },
+      { name: "1b1u (1 Bulan 1 User)", price: 25000 },
+      { name: "1b2u (1 Bulan 2 User)", price: 17000 },
+      { name: "Semi Private 1 Bulan", price: 30000 }
+    ]
+  },
+  /* --- Category: Streaming Apps --- */
+  {
+    name: "WeTV Premium VIP",
+    category: "Streaming Apps",
+    iconName: "MonitorPlay",
+    color: "bg-sky-50 text-sky-500 border border-sky-100",
+    description: "Streaming drama Asia, anime, dan variety show terpopuler.",
+    variants: [
+      { name: "1b shar (Sharing 1 Bulan)", price: 10000 },
+      { name: "prib 1b (Private 1 Bulan)", price: 32000 }
+    ]
+  },
+  {
+    name: "Disney+ Hotstar Premium",
+    category: "Streaming Apps",
+    iconName: "MonitorPlay",
+    color: "bg-indigo-50 text-indigo-500 border border-indigo-100",
+    description: "Akses film Marvel, Disney, Pixar, dan lokal terbaik.",
+    variants: [
+      { name: "6u1b prem (Sharing 1 Bulan)", price: 30000 }
+    ]
+  },
+  {
+    name: "iQIYI Premium VIP",
+    category: "Streaming Apps",
+    iconName: "MonitorPlay",
+    color: "bg-emerald-50 text-emerald-500 border border-emerald-100",
+    description: "Drama Asia premium, variety show, dan anime tanpa iklan.",
+    variants: [
+      { name: "1b std shar (1 Bulan Std)", price: 10000 },
+      { name: "1b prem shar 1lk (1 Bulan Premium)", price: 11000 },
+      { name: "private std 1b (Private 1 Bulan)", price: 32000 },
+      { name: "private prem 1b (Private Premium)", price: 38000 },
+      { name: "prem 1thn (Premium 1 Tahun)", price: 18000 }
+    ]
+  },
+  {
+    name: "Viu Premium",
+    category: "Streaming Apps",
+    iconName: "MonitorPlay",
+    color: "bg-purple-50 text-purple-500 border border-purple-100",
+    description: "Drakor, anime, dan film Asia terbaru dengan subtitle Indo.",
+    variants: [
+      { name: "1b (1 Bulan)", price: 2000 },
+      { name: "1y (1 Tahun)", price: 10000 },
+      { name: "Lifetime (Selamanya)", price: 15000 }
+    ]
+  },
+  {
+    name: "Bstation Premium (APK Merah)",
+    category: "Streaming Apps",
+    iconName: "MonitorPlay",
+    color: "bg-rose-50 text-rose-400 border border-rose-100",
+    description: "Nonton anime kualitas HD legal tanpa buffering.",
+    variants: [
+      { name: "mobile shar 1b", price: 19500 },
+      { name: "mobile priv 1b", price: 33000 }
+    ]
+  },
+  {
+    name: "Dramabox Premium",
+    category: "Streaming Apps",
+    iconName: "MonitorPlay",
+    color: "bg-orange-50 text-orange-500 border border-orange-100",
+    description: "Akses ratusan film pendek drama romantis yang bikin nagih.",
+    variants: [
+      { name: "Premium VIP Access", price: 15000 }
+    ]
+  },
+  {
+    name: "HBO Max Premium",
+    category: "Streaming Apps",
+    iconName: "MonitorPlay",
+    color: "bg-violet-50 text-violet-500 border border-violet-100",
+    description: "Koleksi blockbuster Warner Bros, HBO, dan kartun terbaik.",
+    variants: [
+      { name: "Sharing 1 Bulan VIP", price: 15000 }
+    ]
+  },
+  {
+    name: "Vision+ Premium",
+    category: "Streaming Apps",
+    iconName: "MonitorPlay",
+    color: "bg-cyan-50 text-cyan-500 border border-cyan-100",
+    description: "Nonton TV nasional, internasional, dan siaran bola lengkap.",
+    variants: [
+      { name: "Premium tx 1b", price: 10000 }
+    ]
+  },
+  {
+    name: "Prime Video Premium",
+    category: "Streaming Apps",
+    iconName: "MonitorPlay",
+    color: "bg-blue-50 text-blue-400 border border-blue-100",
+    description: "Nonton Amazon Originals & film hollywood pemenang penghargaan.",
+    variants: [
+      { name: "shar 1b (Sharing 1 Bulan)", price: 9000 }
+    ]
+  },
+  {
+    name: "YouTube Premium",
+    category: "Streaming Apps",
+    iconName: "MonitorPlay",
+    color: "bg-red-50 text-red-600 border border-red-100",
+    description: "Nonton bebas iklan, putar latar belakang, & YouTube Music.",
+    variants: [
+      { name: "youtube famplan 1b", price: 7000 },
+      { name: "youtube indplan 1b", price: 12000 },
+      { name: "youtube famhead 1b", price: 13000 }
+    ]
+  },
+  {
+    name: "Loklok Premium",
+    category: "Streaming Apps",
+    iconName: "MonitorPlay",
+    color: "bg-yellow-50 text-yellow-600 border border-yellow-100",
+    description: "Streaming film, serial, dan variety show tanpa iklan.",
+    variants: [
+      { name: "basic 1b (1 Bulan)", price: 19000 }
+    ]
+  },
+  {
+    name: "Pididi Premium",
+    category: "Streaming Apps",
+    iconName: "MonitorPlay",
+    color: "bg-pink-50 text-pink-500 border border-pink-100",
+    description: "Nikmati tontonan premium terkurasi dengan lancar.",
+    variants: [
+      { name: "pididi alklev shar", price: 22000 }
+    ]
+  },
+  /* --- Category: Listening Apps --- */
+  {
+    name: "Spotify Premium",
+    category: "Listening Apps",
+    iconName: "Music",
+    color: "bg-green-50 text-green-500 border border-green-100",
+    description: "Putar lagu tanpa batasan, tanpa iklan, kualitas audio tinggi.",
+    variants: [
+      { name: "famplan 1b acc s (1 Bulan)", price: 17000 },
+      { name: "famplan 2b acc s (2 Bulan)", price: 31000 },
+      { name: "indplan 20k acc s", price: 20000 },
+      { name: "indplan nogar 1b", price: 14000 }
+    ]
+  },
+  {
+    name: "Apple Music Premium",
+    category: "Listening Apps",
+    iconName: "Music",
+    color: "bg-pink-50 text-pink-500 border border-pink-100",
+    description: "Musik kualitas Spatial Audio dengan Dolby Atmos.",
+    variants: [
+      { name: "appmus 1b (1 Bulan)", price: 8500 },
+      { name: "appmus head (Family Head)", price: 13000 }
+    ]
+  },
+  {
+    name: "CapCut Pro",
+    category: "Listening Apps",
+    iconName: "Camera",
+    color: "bg-slate-50 text-slate-700 border border-slate-200",
+    description: "Akses semua filter premium, transisi, dan template estetik.",
+    variants: [
+      { name: "capcut shar 1b (Sharing)", price: 10000 },
+      { name: "capcut private fullgar (Full Garansi)", price: 15000 }
+    ]
+  },
+  {
+    name: "Canva Pro Premium",
+    category: "Listening Apps",
+    iconName: "Edit3",
+    color: "bg-sky-50 text-sky-500 border border-sky-100",
+    description: "Desain tanpa batas dengan jutaan aset premium lengkap.",
+    variants: [
+      { name: "canva 1b (1 Bulan)", price: 2000 },
+      { name: "canva 1y gar 6b (1 Tahun, Garansi 6 Bulan)", price: 10000 }
+    ]
+  },
+  {
+    name: "Meitu Premium VIP",
+    category: "Listening Apps",
+    iconName: "Camera",
+    color: "bg-pink-50 text-pink-600 border border-pink-100",
+    description: "Edit foto AI, filter anime, dan retouch wajah kualitas pro.",
+    variants: [
+      { name: "meitu shar 1b (1 Bulan)", price: 15000 }
+    ]
+  },
+  {
+    name: "Wink VIP Premium",
+    category: "Listening Apps",
+    iconName: "Camera",
+    color: "bg-purple-50 text-purple-600 border border-purple-100",
+    description: "Tingkatkan resolusi video, filter kecantikan video, dan edit AI.",
+    variants: [
+      { name: "wink andro priv 7d (Android 7 Hari)", price: 10000 }
+    ]
+  },
+  {
+    name: "Alight Motion Pro (AM)",
+    category: "Listening Apps",
+    iconName: "Camera",
+    color: "bg-teal-50 text-teal-600 border border-teal-100",
+    description: "Aplikasi animasi grafis pro, motion design, dan edit video.",
+    variants: [
+      { name: "am setahun priv acc s (Private)", price: 8000 },
+      { name: "am setahun shar acc s (Sharing)", price: 7000 }
+    ]
+  },
+  {
+    name: "Picsart Premium Gold",
+    category: "Listening Apps",
+    iconName: "Edit3",
+    color: "bg-fuchsia-50 text-fuchsia-500 border border-fuchsia-100",
+    description: "Akses ribuan stiker, font, latar belakang, dan alat AI.",
+    variants: [
+      { name: "picsart shar 1b", price: 8500 },
+      { name: "picsart priv 1b", price: 11000 }
+    ]
+  },
+  {
+    name: "OldRoll Premium VIP",
+    category: "Listening Apps",
+    iconName: "Camera",
+    color: "bg-amber-50 text-amber-700 border border-amber-100",
+    description: "Filter kamera film analog klasik vintage estetik.",
+    variants: [
+      { name: "oldroll shar lifetime", price: 15000 }
+    ]
+  },
+  {
+    name: "Remini Web Premium",
+    category: "Listening Apps",
+    iconName: "Camera",
+    color: "bg-red-50 text-red-400 border border-red-100",
+    description: "Tingkatkan kualitas foto blur menjadi jernih dalam sekejap.",
+    variants: [
+      { name: "remini web shar 1b", price: 10000 }
+    ]
+  },
+  /* --- Category: Other Apps --- */
+  {
+    name: "ChatGPT Plus & Team",
+    category: "Other Apps",
+    iconName: "MessageCircle",
+    color: "bg-emerald-50 text-emerald-600 border border-emerald-100",
+    description: "Asisten AI pintar dengan model GPT-4o premium terlengkap.",
+    variants: [
+      { name: "chat gpt shar 8u", price: 21000 },
+      { name: "chat gpt team invite fullgar", price: 30000 },
+      { name: "chat gpt team invite gar 3x", price: 23000 }
+    ]
+  },
+  /* --- Category: Voucher & Food --- */
+  {
+    name: "Tiket Bioskop XXI/CGV",
+    category: "Voucher & Food",
+    iconName: "Ticket",
+    color: "bg-yellow-50 text-amber-700 border border-yellow-100",
+    description: "Nonton film bioskop pilihanmu dengan harga promo spesial.",
+    variants: [
+      { name: "Promo Regular XXI", price: 15000 },
+      { name: "Promo CGV Regular", price: 12000 }
+    ]
+  },
+  {
+    name: "Voucher Kopi Kenangan",
+    category: "Voucher & Food",
+    iconName: "Coffee",
+    color: "bg-[#fdf6f0] text-amber-800 border border-amber-100",
+    description: "Nikmati kopi susu andalan Kopi Kenangan dengan harga hemat.",
+    variants: [
+      { name: "Voucher Rp20.000", price: 15000 },
+      { name: "Voucher Rp50.000", price: 38000 }
+    ]
+  },
+  {
+    name: "Fore Coffee Promo",
+    category: "Voucher & Food",
+    iconName: "Coffee",
+    color: "bg-emerald-50 text-emerald-800 border border-emerald-100",
+    description: "Nikmati racikan kopi premium Fore Coffee yang elegan.",
+    variants: [
+      { name: "Voucher Diskon 50%", price: 8000 }
+    ]
+  },
+  {
+    name: "Tomoro Coffee",
+    category: "Voucher & Food",
+    iconName: "Coffee",
+    color: "bg-orange-50 text-orange-600 border border-orange-100",
+    description: "Sajian kopi berkualitas modern dari Tomoro Coffee.",
+    variants: [
+      { name: "Voucher Rp20.000", price: 14000 }
+    ]
+  },
+  {
+    name: "Richeese Factory",
+    category: "Voucher & Food",
+    iconName: "Coffee",
+    color: "bg-red-50 text-red-600 border border-red-100",
+    description: "Promo ayam saus keju pedas legendaris Richeese Factory.",
+    variants: [
+      { name: "Voucher Value Rp50.000", price: 42000 }
+    ]
+  },
+  {
+    name: "McDonald's Promo",
+    category: "Voucher & Food",
+    iconName: "Coffee",
+    color: "bg-yellow-50 text-red-500 border border-yellow-200",
+    description: "Nikmati burger, kentang, dan es krim McD kesayanganmu.",
+    variants: [
+      { name: "Voucher Value Rp50.000", price: 44000 }
+    ]
+  },
+  {
+    name: "KFC Voucher",
+    category: "Voucher & Food",
+    iconName: "Coffee",
+    color: "bg-red-50 text-red-700 border border-red-200",
+    description: "Jagonya Ayam! Nikmati paket KFC kriuk lezat dengan diskon.",
+    variants: [
+      { name: "Voucher Value Rp50.000", price: 43000 }
+    ]
+  }
+];
+
+const CartContext = createContext();
+const ToastContext = createContext();
+
+const CartProvider = ({ children }) => {
+  const [cartItems, setCartItems] = useState([]);
+  
+  const addToCart = (product, variant) => {
+    setCartItems(prev => {
+      const existingItem = prev.find(item => item.product.id === product.id && item.variant.name === variant.name);
+      if (existingItem) {
+        return prev.map(item => 
+          (item.product.id === product.id && item.variant.name === variant.name) 
+            ? { ...item, quantity: item.quantity + 1 } 
+            : item
+        );
+      }
+      return [...prev, { product, variant, quantity: 1 }];
+    });
+  };
+
+  const removeFromCart = (productId, variantName) => {
+    setCartItems(prev => prev.filter(item => !(item.product.id === productId && item.variant.name === variantName)));
+  };
+
+  const updateQuantity = (productId, variantName, amount) => {
+    setCartItems(prev => prev.map(item => {
+      if (item.product.id === productId && item.variant.name === variantName) {
+        const newQty = item.quantity + amount;
+        return newQty > 0 ? { ...item, quantity: newQty } : item;
+      }
+      return item;
+    }).filter(item => item.quantity > 0));
+  };
+
+  const clearCart = () => setCartItems([]);
+
+  const cartTotal = cartItems.reduce((total, item) => total + (item.variant.price * item.quantity), 0);
+
+  return (
+    <CartContext.Provider value={{ cartItems, addToCart, removeFromCart, updateQuantity, clearCart, cartTotal }}>
+      {children}
+    </CartContext.Provider>
+  );
+};
+
+const ToastProvider = ({ children }) => {
+  const [toast, setToast] = useState(null);
+
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  return (
+    <ToastContext.Provider value={{ showToast }}>
+      {children}
+      {toast && (
+        <div className="fixed bottom-5 left-1/2 transform -translate-x-1/2 z-50 animate-bounce">
+          <div className={`px-6 py-3 rounded-2xl shadow-xl backdrop-blur-md border border-white/40 flex items-center gap-2
+            ${toast.type === 'success' ? 'bg-[#FFF9E6] text-amber-800 border-yellow-200' : 'bg-red-50 text-red-600 border-red-200'}`}>
+            {toast.type === 'success' ? <CheckCircle2 size={18} className="text-amber-600" /> : <AlertTriangle size={18} />}
+            <span className="font-semibold text-sm">{toast.message}</span>
+          </div>
+        </div>
+      )}
+    </ToastContext.Provider>
+  );
+};
+
+const CustomConfirm = ({ isOpen, title, message, onConfirm, onCancel }) => {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-[200] bg-amber-950/40 backdrop-blur-xs flex items-center justify-center p-4">
+      <div className="bg-[#FFFDF4] rounded-3xl p-6 max-w-sm w-full border border-yellow-100 shadow-2xl text-center">
+        <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4 text-amber-800">
+          <Info size={24} />
+        </div>
+        <h3 className="text-lg font-bold text-amber-900 mb-2">{title}</h3>
+        <p className="text-sm text-amber-700/80 mb-6">{message}</p>
+        <div className="flex gap-3 justify-center">
+          <button 
+            onClick={onCancel} 
+            className="flex-1 py-2.5 rounded-xl border border-yellow-200 bg-white hover:bg-yellow-50 text-amber-800 font-bold text-sm transition-colors"
+          >
+            Batal
+          </button>
+          <button 
+            onClick={onConfirm} 
+            className="flex-1 py-2.5 rounded-xl bg-amber-900 hover:bg-amber-800 text-yellow-300 font-bold text-sm transition-colors"
+          >
+            Ya, Hapus
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const formatRupiah = (number) => {
+  return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(number);
+};
+
+const getIconComponent = (iconName) => {
+  const icons = { Film, Music, Edit3, MonitorPlay, Camera, Coffee, Ticket, MessageCircle };
+  const Icon = icons[iconName] || Star;
+  return <Icon size={24} strokeWidth={1.8} />;
+};
+
+const Navbar = ({ cartCount, onOpenCart, onOpenAdmin, isLocalStorage }) => (
+  <nav className="sticky top-0 z-40 bg-[#FFFDF4]/80 backdrop-blur-lg border-b border-yellow-100/40">
+    <div className="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
+      <div className="flex items-center gap-3">
+        <img 
+          src="6116074859218538808.jpg" 
+          alt="velle.store Logo" 
+          className="h-10 md:h-12 w-auto object-contain rounded-xl shadow-xs border border-yellow-200/40 bg-[#fffefc] p-0.5 hover:rotate-2 transition-transform" 
+        />
+        {isLocalStorage && (
+          <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 text-[9px] bg-amber-500/10 text-amber-800 font-bold rounded-full border border-amber-500/20">
+            <Sparkles size={10} className="text-amber-600 animate-pulse" /> Offline Safe Mode
+          </span>
+        )}
+      </div>
+      <div className="flex items-center gap-3">
+        <button 
+          onClick={onOpenAdmin}
+          className="p-2.5 rounded-xl hover:bg-yellow-100/50 text-amber-800 transition-all active:scale-90"
+          title="Dashboard Admin"
+        >
+          <Settings size={20} />
+        </button>
+        <button 
+          onClick={onOpenCart}
+          className="relative p-2.5 rounded-xl bg-amber-900/5 hover:bg-amber-900/10 transition-colors text-amber-900"
+        >
+          <ShoppingCart size={20} />
+          {cartCount > 0 && (
+            <span className="absolute -top-1.5 -right-1.5 min-w-[20px] h-5 px-1 bg-amber-800 text-[#FFFDF4] text-[10px] rounded-full flex items-center justify-center font-extrabold border-2 border-[#FFFDF4] animate-pulse">
+              {cartCount}
+            </span>
+          )}
+        </button>
+      </div>
+    </div>
+  </nav>
+);
+
+const Hero = () => (
+  <div className="relative overflow-hidden bg-gradient-to-b from-[#FFFDF4] via-[#FFF9E6]/40 to-[#FFFDF4] py-12 sm:py-20">
+    <div className="absolute top-8 left-10 text-yellow-400 animate-pulse opacity-60"><Star size={24} fill="currentColor" /></div>
+    <div className="absolute bottom-16 right-10 text-pink-300 animate-bounce opacity-60" style={{animationDuration: '3.5s'}}><Heart size={20} fill="currentColor" /></div>
+    <div className="absolute top-1/4 right-1/4 w-40 h-40 bg-yellow-200/30 rounded-full mix-blend-multiply filter blur-2xl opacity-70 animate-blob"></div>
+    <div className="absolute top-1/3 left-1/4 w-44 h-44 bg-pink-100/30 rounded-full mix-blend-multiply filter blur-2xl opacity-70 animate-blob animation-delay-2000"></div>
+
+    <div className="max-w-4xl mx-auto px-4 text-center relative z-10">
+      <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/60 border border-yellow-200/50 shadow-xs text-xs font-bold text-amber-800 mb-6 backdrop-blur-xs">
+        <span className="w-2.5 h-2.5 rounded-full bg-green-400 animate-pulse"></span>
+        Admin ONLINE - Fast Respon ⚡
+      </div>
+      
+      <h1 className="text-3xl sm:text-5xl font-extrabold text-amber-950 mb-3 tracking-tight leading-tight">
+        VELLE.STORE <br/>
+        <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-600 to-amber-800 font-bold">
+          Trusted Digital Product
+        </span>
+      </h1>
+      
+      <p className="text-sm sm:text-base text-amber-800/70 mb-8 max-w-lg mx-auto font-medium">
+        Murah • Aman • Fast Respon • Trusted
+      </p>
+      
+      <div className="flex flex-row gap-3 justify-center items-center">
+        <a href="#products-list" className="px-6 py-3 rounded-2xl bg-amber-900 hover:bg-amber-800 text-yellow-300 font-bold shadow-md transition-all hover:scale-105 active:scale-95 flex items-center gap-2 text-sm">
+          Order Sekarang <ArrowRight size={16} />
+        </a>
+        <a href={`https://wa.me/${STORE_WA_NUMBER}`} target="_blank" rel="noreferrer" className="px-6 py-3 rounded-2xl bg-white hover:bg-[#FFF9E6]/30 text-amber-950 font-bold border border-yellow-200/60 shadow-xs transition-all hover:scale-105 active:scale-95 flex items-center gap-2 text-sm">
+          <MessageCircle size={16} className="text-green-500 fill-green-50" /> Chat WA
+        </a>
+      </div>
+    </div>
+  </div>
+);
+
+const ProductCard = ({ product }) => {
+  const [selectedVariant, setSelectedVariant] = useState(product.variants[0] || null);
+  const { addToCart } = useContext(CartContext);
+  const { showToast } = useContext(ToastContext);
+
+  useEffect(() => {
+    if (product.variants && product.variants.length > 0) {
+      setSelectedVariant(product.variants[0]);
+    }
+  }, [product]);
+
+  const handleAddToCart = () => {
+    if (!selectedVariant) {
+      showToast('Pilih varian terlebih dahulu', 'error');
+      return;
+    }
+    addToCart(product, selectedVariant);
+    showToast(`${product.name} (${selectedVariant.name}) ditambahkan ke keranjang!`);
+  };
+
+  return (
+    <div className="bg-white/70 backdrop-blur-md rounded-3xl p-5 border border-yellow-100/60 shadow-xs hover:shadow-lg transition-all duration-300 flex flex-col group relative overflow-hidden">
+      <div className="absolute top-0 right-0 w-24 h-24 bg-yellow-200/10 rounded-full -mr-10 -mt-10 group-hover:scale-150 transition-transform"></div>
+      
+      <div className="flex items-start gap-4 mb-4 relative z-10">
+        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${product.color || 'bg-yellow-50 text-yellow-600'} shadow-xs group-hover:rotate-6 transition-all`}>
+          {getIconComponent(product.iconName)}
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="font-extrabold text-amber-950 text-base group-hover:text-amber-800 transition-colors truncate">{product.name}</h3>
+          <p className="text-xs text-amber-700/60 font-medium mt-1 leading-relaxed line-clamp-2">{product.description}</p>
+        </div>
+      </div>
+
+      <div className="mt-auto relative z-10">
+        <label className="block text-[11px] font-bold text-amber-800 mb-1.5 uppercase tracking-wide">Pilih Varian:</label>
+        <div className="relative">
+          <select 
+            className="w-full pl-3 pr-8 py-2.5 rounded-xl bg-[#FFFDF4] border border-yellow-200/60 text-xs text-amber-950 font-bold focus:ring-2 focus:ring-yellow-300 appearance-none cursor-pointer"
+            value={selectedVariant?.name || ''}
+            onChange={(e) => {
+              const variant = product.variants.find(v => v.name === e.target.value);
+              setSelectedVariant(variant);
+            }}
+          >
+            {product.variants.map((v, idx) => (
+              <option key={idx} value={v.name}>{v.name} — {formatRupiah(v.price)}</option>
+            ))}
+          </select>
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-amber-700/60">
+            <ChevronUp size={14} className="rotate-180" />
+          </div>
+        </div>
+        
+        <div className="flex items-center justify-between mt-4 pt-3 border-t border-yellow-100/50">
+          <div>
+            <span className="block text-[10px] text-amber-700/60 font-medium uppercase tracking-wider">Harga Promo</span>
+            <span className="text-base font-black text-amber-900">
+              {selectedVariant ? formatRupiah(selectedVariant.price) : '-'}
+            </span>
+          </div>
+          <button 
+            onClick={handleAddToCart}
+            className="px-4 py-2.5 rounded-xl bg-amber-900 text-yellow-300 font-bold text-xs hover:bg-amber-800 shadow-xs transition-transform active:scale-95 flex items-center gap-1.5"
+          >
+            + <ShoppingCart size={13} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const CheckoutPage = ({ onClose, dynamicPaymentMethods }) => {
+  const { cartItems, cartTotal, updateQuantity, removeFromCart, clearCart } = useContext(CartContext);
+  const [customerName, setCustomerName] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [copiedId, setCopiedId] = useState(null);
+  const [uploadedImage, setUploadedImage] = useState(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const { showToast } = useContext(ToastContext);
+
+  const handleCopy = (text, id) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    showToast('Nomor rekening disalin!');
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setUploadedImage(reader.result);
+        showToast('Bukti transfer berhasil dipilih!');
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setUploadedImage(reader.result);
+        showToast('Bukti transfer diunggah!');
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleCheckout = () => {
+    if (!customerName || !paymentMethod) return;
+    setIsProcessing(true);
+    
+    setTimeout(() => {
+      let itemList = cartItems.map(item => `- ${item.product.name} (${item.variant.name}) x${item.quantity} = ${formatRupiah(item.variant.price * item.quantity)}`).join('%0A');
+      
+      const message = `Halo admin velle.store, saya sudah melakukan pembayaran.%0A%0A*Nama:* ${customerName}%0A*Pesanan:*%0A${itemList}%0A%0A*Total:* ${formatRupiah(cartTotal)}%0A*Metode Pembayaran:* ${paymentMethod}%0A%0ABerikut bukti transfer saya.`;
+      
+      window.open(`https://wa.me/${STORE_WA_NUMBER}?text=${message}`, '_blank');
+      clearCart();
+      onClose();
+      setIsProcessing(false);
+    }, 800);
+  };
+
+  const activeMethod = dynamicPaymentMethods.find(m => m.name === paymentMethod);
+
+  return (
+    <div className="fixed inset-0 z-50 bg-amber-950/40 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fadeIn">
+      <div className="bg-[#FFFDF4] w-full sm:max-w-2xl sm:rounded-3xl rounded-t-3xl h-[90vh] sm:h-auto max-h-[92vh] flex flex-col shadow-2xl overflow-hidden relative">
+        <div className="p-4 border-b border-yellow-100 bg-white flex justify-between items-center sticky top-0 z-10">
+          <div className="flex items-center gap-2">
+            <ShoppingCart size={20} className="text-amber-800" />
+            <h2 className="text-lg font-bold text-amber-950">Keranjang & Checkout</h2>
+          </div>
+          <button onClick={onClose} className="p-2 bg-yellow-50 hover:bg-yellow-100 rounded-full text-amber-800 transition-colors"><X size={18} /></button>
+        </div>
+
+        <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-6">
+          {cartItems.length === 0 ? (
+            <div className="text-center py-16 space-y-4">
+              <div className="w-16 h-16 bg-yellow-100/50 rounded-full flex items-center justify-center mx-auto text-amber-800">
+                <ShoppingCart size={28} />
+              </div>
+              <p className="text-amber-900 font-bold text-base">Keranjang Anda kosong!</p>
+              <p className="text-xs text-amber-700/60 max-w-xs mx-auto">Silakan pilih produk digital premium terfavorit Anda terlebih dahulu.</p>
+              <button 
+                onClick={onClose} 
+                className="px-5 py-2.5 rounded-xl bg-amber-900 text-yellow-300 text-xs font-bold shadow-xs hover:bg-amber-800 transition-colors"
+              >
+                Mulai Belanja
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <div className="bg-white/80 p-4 rounded-2xl border border-yellow-100/60 shadow-xs">
+                <h3 className="font-bold text-amber-950 text-sm mb-3 flex items-center gap-1.5">🛒 Item Belanja</h3>
+                <div className="space-y-3.5">
+                  {cartItems.map((item, idx) => (
+                    <div key={idx} className="flex items-center justify-between text-xs pb-3 border-b border-yellow-50 last:border-0 last:pb-0">
+                      <div className="flex-1 min-w-0 pr-3">
+                        <p className="font-extrabold text-amber-950 truncate">{item.product.name}</p>
+                        <p className="text-[10px] text-amber-700/60 mt-0.5">{item.variant.name}</p>
+                        <p className="font-bold text-amber-900 mt-1">{formatRupiah(item.variant.price)} / unit</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2 bg-yellow-50 rounded-lg p-1 border border-yellow-100/40">
+                          <button 
+                            onClick={() => updateQuantity(item.product.id, item.variant.name, -1)}
+                            className="w-5 h-5 flex items-center justify-center bg-white rounded-md text-amber-800 hover:bg-yellow-100 text-xs font-bold transition-all"
+                          >
+                            -
+                          </button>
+                          <span className="text-xs font-extrabold text-amber-950 min-w-[12px] text-center">{item.quantity}</span>
+                          <button 
+                            onClick={() => updateQuantity(item.product.id, item.variant.name, 1)}
+                            className="w-5 h-5 flex items-center justify-center bg-white rounded-md text-amber-800 hover:bg-yellow-100 text-xs font-bold transition-all"
+                          >
+                            +
+                          </button>
+                        </div>
+                        
+                        <span className="font-extrabold text-amber-950 min-w-[70px] text-right">
+                          {formatRupiah(item.variant.price * item.quantity)}
+                        </span>
+                        
+                        <button 
+                          onClick={() => removeFromCart(item.product.id, item.variant.name)}
+                          className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Hapus Item"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4 pt-3.5 border-t border-yellow-100/60 flex justify-between items-center text-sm">
+                  <span className="font-bold text-amber-800">Total Pembayaran</span>
+                  <span className="font-black text-lg text-amber-950">{formatRupiah(cartTotal)}</span>
+                </div>
+              </div>
+
+              {/* WARNING BOX */}
+              <div className="bg-red-50/70 border border-red-200/50 p-4 rounded-2xl flex gap-3 text-red-800/90 shadow-xs">
+                <AlertTriangle className="shrink-0 text-red-500" size={18} />
+                <div className="text-xs space-y-1">
+                  <p className="font-black text-red-700 uppercase">WARNING SEBELUM TRANSFER:</p>
+                  <p>• Transfer dari sesama <b className="text-red-700">DANA ke DANA</b> dikenakan biaya admin <b>+Rp150</b></p>
+                  <p>• Transfer dari <b className="text-red-700">Bank / E-Wallet lain ke DANA</b> dikenakan biaya admin <b>+Rp1.000</b></p>
+                  <p>• Kesalahan nominal transfer di luar tanggung jawab seller.</p>
+                </div>
+              </div>
+
+              <div className="bg-white/80 p-4 rounded-2xl border border-yellow-100/60 shadow-xs space-y-3">
+                <label className="block text-xs font-bold text-amber-950 uppercase tracking-wide">Nama Lengkap Anda</label>
+                <input 
+                  type="text" 
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  placeholder="Masukkan nama Anda untuk verifikasi order..."
+                  className="w-full px-4 py-2.5 rounded-xl bg-[#FFFDF4] border border-yellow-200/60 text-xs text-amber-950 font-bold focus:ring-2 focus:ring-yellow-300 outline-none transition-all placeholder:text-amber-700/30"
+                />
+              </div>
+
+              <div className="bg-white/80 p-4 rounded-2xl border border-yellow-100/60 shadow-xs space-y-4">
+                <label className="block text-xs font-bold text-amber-950 uppercase tracking-wide">Metode Pembayaran</label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                  {dynamicPaymentMethods.map(method => (
+                    <button
+                      key={method.id}
+                      onClick={() => setPaymentMethod(method.name)}
+                      className={`p-3 rounded-2xl border text-xs font-bold transition-all flex flex-col items-center justify-center gap-2
+                        ${paymentMethod === method.name 
+                          ? 'bg-yellow-100/50 border-yellow-400 text-amber-950 shadow-inner' 
+                          : 'bg-[#FFFDF4]/50 border-yellow-100/60 text-amber-800 hover:bg-yellow-50'}`}
+                    >
+                      <CreditCard size={16} className={paymentMethod === method.name ? 'text-amber-800' : 'text-amber-700/60'} />
+                      {method.name}
+                    </button>
+                  ))}
+                </div>
+
+                {paymentMethod && activeMethod && (
+                  <div className="p-4 rounded-2xl bg-[#FFFDF4] border border-yellow-200/60 text-center space-y-4 animate-fadeIn">
+                    <h4 className="text-xs font-extrabold text-amber-950 uppercase tracking-wider">Detail Instruksi {paymentMethod}</h4>
+                    
+                    {paymentMethod.toUpperCase() === 'QRIS' ? (
+                      <div className="space-y-3">
+                        <p className="text-[10px] text-amber-700/60 font-medium">Silakan scan kode QRIS di bawah ini dengan aplikasi pembayaran favorit Anda.</p>
+                        <div className="bg-white p-2 rounded-2xl inline-block border border-yellow-100/60 shadow-xs">
+                          <img 
+                            src="6116074859218538807.jpg" 
+                            alt="QRIS Payment Scan" 
+                            className="w-56 h-auto mx-auto rounded-xl object-contain" 
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-4 bg-white rounded-xl border border-yellow-100/60 shadow-xs flex flex-col items-center justify-center space-y-2">
+                        <p className="text-[11px] text-amber-700/60 font-medium">Nomor Tujuan Transfer:</p>
+                        <p className="text-base font-black text-amber-950">{activeMethod.number}</p>
+                        <p className="text-xs text-amber-800/80 font-bold">{activeMethod.detail}</p>
+                        
+                        <button 
+                          onClick={() => handleCopy(activeMethod.number, activeMethod.id)}
+                          className="mt-2 px-4 py-1.5 rounded-lg bg-yellow-50 hover:bg-yellow-100 text-amber-800 text-[10px] font-bold border border-yellow-200/40 flex items-center gap-1.5 transition-all"
+                        >
+                          {copiedId === activeMethod.id ? (
+                            <>
+                              <Check size={12} className="text-green-600" /> Tersalin!
+                            </>
+                          ) : (
+                            <>
+                              <Copy size={12} /> Salin Nomor
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )}
+
+                    <div className="pt-3 border-t border-yellow-100/60 space-y-3">
+                      <p className="text-[11px] font-bold text-amber-950 text-left uppercase tracking-wider">Upload Bukti Transfer</p>
+                      
+                      <div 
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
+                        className={`border-2 border-dashed rounded-2xl p-4 text-center cursor-pointer transition-all flex flex-col items-center justify-center space-y-2
+                          ${isDragOver ? 'border-amber-600 bg-yellow-50' : 'border-yellow-200 bg-white/50'}`}
+                      >
+                        {uploadedImage ? (
+                          <div className="space-y-2">
+                            <div className="relative inline-block">
+                              <img src={uploadedImage} alt="Bukti Transfer" className="h-28 w-auto rounded-lg object-cover border shadow-sm" />
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setUploadedImage(null);
+                                }}
+                                className="absolute -top-1.5 -right-1.5 p-1 bg-red-500 hover:bg-red-600 text-white rounded-full transition-colors"
+                              >
+                                <X size={10} />
+                              </button>
+                            </div>
+                            <p className="text-[9px] text-green-600 font-extrabold flex items-center justify-center gap-1">
+                              <CheckCircle2 size={10} /> Bukti transfer tersimpan
+                            </p>
+                          </div>
+                        ) : (
+                          <>
+                            <Upload size={18} className="text-amber-700/40" />
+                            <p className="text-[11px] text-amber-900 font-bold">Tarik file bukti transfer di sini, atau</p>
+                            <label className="px-3 py-1.5 bg-yellow-50 hover:bg-yellow-100 border border-yellow-200/40 text-amber-800 text-[10px] font-extrabold rounded-lg cursor-pointer transition-colors inline-block">
+                              Pilih File / Kamera
+                              <input 
+                                type="file" 
+                                accept="image/*" 
+                                onChange={handleFileChange} 
+                                className="hidden" 
+                              />
+                            </label>
+                            <p className="text-[9px] text-amber-700/40">Format file: JPG, JPEG, PNG</p>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    <p className="text-[9px] text-amber-800 font-bold bg-amber-50/50 p-2.5 rounded-xl border border-yellow-100/40">
+                      *Setelah Anda mengklik tombol "Saya Sudah Bayar" di bawah, Anda akan diarahkan ke WhatsApp Admin dengan draft teks pesanan. Harap kirimkan pesan tersebut & lampirkan gambar bukti transfer Anda.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {cartItems.length > 0 && (
+          <div className="p-4 bg-white border-t border-yellow-100/60">
+            <button 
+              onClick={handleCheckout}
+              disabled={!customerName || !paymentMethod || isProcessing}
+              className={`w-full py-3.5 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 transition-all
+                ${(!customerName || !paymentMethod) 
+                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200/40' 
+                  : 'bg-green-500 hover:bg-green-600 text-white shadow-md active:scale-95'}`}
+            >
+              {isProcessing ? 'Sedang Memproses...' : 'Saya Sudah Bayar & Konfirmasi via WA'}
+              {!isProcessing && <MessageCircle size={16} className="fill-white/10" />}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const AdminDashboard = ({ onClose, products, paymentMethods, onProductsChange, onPaymentsChange, isLocalStorage }) => {
+  const [pin, setPin] = useState('');
+  const [isAuthorized, setIsAuthorized] = useState(false);
+  const [activeTab, setActiveTab] = useState('products');
+  const { showToast } = useContext(ToastContext);
+
+  const [confirmDelete, setConfirmDelete] = useState({ isOpen: false, productId: null, productName: '' });
+
+  const [newProduct, setNewProduct] = useState({ 
+    name: '', 
+    category: 'Netflix', 
+    iconName: 'Film', 
+    description: '', 
+    color: 'bg-yellow-50 text-yellow-600 border border-yellow-100' 
+  });
+  
+  const [newVariants, setNewVariants] = useState([{ name: '', price: '' }]);
+  const [editPayments, setEditPayments] = useState([]);
+
+  useEffect(() => {
+    if (paymentMethods) {
+      setEditPayments(JSON.parse(JSON.stringify(paymentMethods)));
+    }
+  }, [paymentMethods]);
+
+  const handleVerifyPin = () => {
+    if (pin === '1234' || pin === 'velleadmin') {
+      setIsAuthorized(true);
+      showToast('Login Admin berhasil!');
+    } else {
+      showToast('PIN salah! Tips: gunakan pin "1234"', 'error');
+    }
+  };
+
+  const handleAddVariant = () => setNewVariants([...newVariants, { name: '', price: '' }]);
+  const handleRemoveVariant = (index) => {
+    if (newVariants.length > 1) {
+      setNewVariants(newVariants.filter((_, idx) => idx !== index));
+    }
+  };
+  
+  const handleVariantChange = (index, field, value) => {
+    const updated = [...newVariants];
+    updated[index][field] = field === 'price' ? (value === '' ? '' : Number(value)) : value;
+    setNewVariants(updated);
+  };
+
+  const handleAddProduct = () => {
+    if (!newProduct.name || !newProduct.description || newVariants.length === 0 || !newVariants[0].name || newVariants[0].price === '') {
+      showToast('Lengkapi data produk dan minimal satu varian!', 'error');
+      return;
+    }
+    
+    const payload = {
+      name: newProduct.name,
+      category: newProduct.category,
+      iconName: newProduct.iconName,
+      description: newProduct.description,
+      color: newProduct.color,
+      variants: newVariants.filter(v => v.name && v.price !== ''),
+    };
+
+    onProductsChange('add', payload);
+    
+    setNewProduct({ 
+      name: '', 
+      category: 'Netflix', 
+      iconName: 'Film', 
+      description: '', 
+      color: 'bg-yellow-50 text-yellow-600 border border-yellow-100' 
+    });
+    setNewVariants([{ name: '', price: '' }]);
+  };
+
+  const triggerDeleteProduct = (id, name) => {
+    setConfirmDelete({ isOpen: true, productId: id, productName: name });
+  };
+
+  const handleDeleteProduct = () => {
+    onProductsChange('delete', confirmDelete.productId);
+    setConfirmDelete({ isOpen: false, productId: null, productName: '' });
+  };
+
+  const handlePaymentChange = (index, field, value) => {
+    const updated = [...editPayments];
+    updated[index][field] = value;
+    setEditPayments(updated);
+  };
+
+  const handleSavePayments = () => {
+    onPaymentsChange(editPayments);
+  };
+
+  if (!isAuthorized) {
+    return (
+      <div className="fixed inset-0 z-[100] bg-amber-950/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="bg-[#FFFDF4] w-full max-w-sm rounded-3xl p-6 border border-yellow-100 shadow-2xl space-y-4 text-center">
+          <div className="w-12 h-12 bg-amber-100 text-amber-800 rounded-full flex items-center justify-center mx-auto">
+            <Settings size={22} />
+          </div>
+          <div>
+            <h3 className="text-base font-extrabold text-amber-950">Akses Admin Panel</h3>
+            <p className="text-xs text-amber-700/60 mt-1">Gunakan PIN default <strong className="text-amber-800 font-bold">1234</strong> untuk login.</p>
+          </div>
+          <div className="space-y-3">
+            <input 
+              type="password" 
+              placeholder="Masukkan PIN Admin..." 
+              value={pin}
+              onChange={(e) => setPin(e.target.value)}
+              className="w-full text-center px-4 py-2.5 rounded-xl bg-white border border-yellow-200 text-sm font-bold text-amber-900 outline-none focus:ring-2 focus:ring-yellow-300"
+            />
+            <div className="flex gap-2">
+              <button onClick={onClose} className="flex-1 py-2 rounded-xl border border-yellow-200 text-xs font-bold text-amber-800 hover:bg-yellow-50 transition-colors">Batal</button>
+              <button onClick={handleVerifyPin} className="flex-1 py-2 bg-amber-900 text-yellow-300 rounded-xl text-xs font-bold hover:bg-amber-800 transition-colors">Masuk</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-[100] bg-amber-950/40 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
+      <div className="bg-[#FFFDF4] w-full max-w-4xl rounded-3xl h-[85vh] flex flex-col shadow-2xl overflow-hidden relative border border-yellow-100">
+        
+        <div className="p-4 border-b border-yellow-100 bg-white flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <Settings size={20} className="text-amber-800 animate-spin-slow" />
+            <h2 className="text-base font-bold text-amber-900">Admin Dashboard</h2>
+            {isLocalStorage && (
+              <span className="px-2 py-0.5 bg-amber-100 text-amber-
